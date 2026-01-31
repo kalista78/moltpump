@@ -2,7 +2,8 @@ import { PUMP_FUN } from '../config/constants.js';
 import { PumpFunError, ValidationError } from '../utils/errors.js';
 import { isValidPublicKey, getPumpFunUrl } from '../utils/solana.js';
 import { storageService } from './storage.service.js';
-import type { TokenLaunchParams, TokenLaunchResult } from '../types/index.js';
+import { feeSharingService } from './fee-sharing.service.js';
+import type { TokenLaunchParams, TokenLaunchResult, FeeSharingSetupResult } from '../types/index.js';
 
 interface IpfsUploadResponse {
   metadataUri: string;
@@ -14,6 +15,10 @@ interface CreateTokenResponse {
   txSignature?: string;
   bondingCurve?: string;
   error?: string;
+}
+
+interface TokenLaunchResultWithFeeSharing extends TokenLaunchResult {
+  feeSharingSetup?: FeeSharingSetupResult;
 }
 
 class PumpFunService {
@@ -159,6 +164,45 @@ class PumpFunService {
         error: error instanceof Error ? error.message : 'Unknown error during token launch',
       };
     }
+  }
+
+  /**
+   * Launch a token with fee sharing setup
+   * After creating the token, sets up 40/60 fee split (agent/platform)
+   */
+  async launchTokenWithFeeSharing(
+    params: TokenLaunchParams,
+    agentWalletAddress: string
+  ): Promise<TokenLaunchResultWithFeeSharing> {
+    // Step 1: Launch the token
+    const launchResult = await this.launchToken(params, agentWalletAddress);
+
+    if (!launchResult.success || !launchResult.mint) {
+      return launchResult;
+    }
+
+    console.log(`Token created: ${launchResult.mint}, setting up fee sharing...`);
+
+    // Step 2: Set up fee sharing (40% agent, 60% platform)
+    // Small delay to ensure the token is fully indexed
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const feeSharingResult = await feeSharingService.setupFeeSharing(
+      launchResult.mint,
+      agentWalletAddress
+    );
+
+    if (!feeSharingResult.success) {
+      console.warn(`Fee sharing setup failed for ${launchResult.mint}: ${feeSharingResult.error}`);
+      // Don't fail the entire launch - token is created, fee sharing can be retried
+    } else {
+      console.log(`Fee sharing configured for ${launchResult.mint}`);
+    }
+
+    return {
+      ...launchResult,
+      feeSharingSetup: feeSharingResult,
+    };
   }
 
   /**

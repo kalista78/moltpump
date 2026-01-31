@@ -92,6 +92,12 @@ export class SolanaError extends ExternalServiceError {
   }
 }
 
+export class FeeSharingError extends ExternalServiceError {
+  constructor(message: string = 'Fee sharing service error') {
+    super('fee_sharing', message);
+  }
+}
+
 export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;
 }

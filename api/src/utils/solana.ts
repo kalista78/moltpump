@@ -7,7 +7,7 @@ let connection: Connection | null = null;
 
 export function getConnection(): Connection {
   if (!connection) {
-    connection = new Connection(env.HELIUS_RPC_URL, {
+    connection = new Connection(env.SOLANA_RPC_URL, {
       commitment: 'confirmed',
     });
   }

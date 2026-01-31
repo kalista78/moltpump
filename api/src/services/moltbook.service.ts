@@ -9,15 +9,18 @@ class MoltbookService {
     this.baseUrl = env.MOLTBOOK_API_URL;
   }
 
+  /**
+   * Validate an API key by calling GET /agents/me
+   * Returns the agent profile if valid, null if invalid
+   */
   async validateApiKey(apiKey: string): Promise<MoltbookAgent | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/validate-key`, {
-        method: 'POST',
+      const response = await fetch(`${this.baseUrl}/agents/me`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ api_key: apiKey }),
       });
 
       if (!response.ok) {
@@ -29,7 +32,7 @@ class MoltbookService {
 
       const data = await response.json() as MoltbookValidationResponse;
 
-      if (!data.valid || !data.agent) {
+      if (!data.success || !data.agent) {
         return null;
       }
 
@@ -43,12 +46,16 @@ class MoltbookService {
     }
   }
 
-  async getAgentProfile(apiKey: string): Promise<MoltbookAgent | null> {
+  /**
+   * Get an agent's profile by name (includes Twitter/X info in owner field)
+   */
+  async getAgentProfile(apiKey: string, agentName: string): Promise<MoltbookAgent | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/agent/profile`, {
+      const response = await fetch(`${this.baseUrl}/agents/profile?name=${encodeURIComponent(agentName)}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
       });
 
@@ -59,7 +66,12 @@ class MoltbookService {
         throw new MoltbookError(`API returned ${response.status}`);
       }
 
-      const data = await response.json() as { agent: MoltbookAgent };
+      const data = await response.json() as MoltbookValidationResponse;
+
+      if (!data.success || !data.agent) {
+        return null;
+      }
+
       return data.agent;
     } catch (error) {
       if (error instanceof MoltbookError) throw error;
@@ -68,10 +80,20 @@ class MoltbookService {
     }
   }
 
+  /**
+   * Get the Twitter/X handle for an agent
+   * Calls the profile endpoint which includes owner info
+   */
+  async getAgentTwitterHandle(apiKey: string, agentName: string): Promise<string | null> {
+    const profile = await this.getAgentProfile(apiKey, agentName);
+    return profile?.owner?.x_handle || null;
+  }
+
+  /**
+   * Hash API key for local storage/lookup
+   * Uses djb2-like hash - not for security, just for indexing
+   */
   hashApiKey(apiKey: string): string {
-    // Create a simple hash for storage (not for security, just for lookup)
-    // In production, use a proper hashing library like bcrypt or argon2
-    // Simple djb2-like hash
     let hash = 5381;
     for (let i = 0; i < apiKey.length; i++) {
       const char = apiKey.charCodeAt(i);

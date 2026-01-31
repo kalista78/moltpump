@@ -101,17 +101,36 @@ export type LaunchInsert = Omit<Launch, 'id' | 'started_at'> & {
 export type LaunchUpdate = Partial<LaunchInsert>;
 
 // Moltbook API types
+export interface MoltbookAgentOwner {
+  x_handle: string;
+  x_name: string;
+  x_avatar: string;
+  x_bio: string;
+  x_follower_count: number;
+  x_following_count: number;
+  x_verified: boolean;
+}
+
 export interface MoltbookAgent {
   id: string;
   name: string;
-  twitter_handle?: string;
-  api_key_valid: boolean;
+  description: string;
+  karma: number;
+  is_claimed: boolean;
+  is_active: boolean;
+  created_at: string;
+  last_active: string;
+  follower_count: number;
+  following_count: number;
+  avatar_url: string;
+  owner?: MoltbookAgentOwner; // Only included in profile endpoint
 }
 
 export interface MoltbookValidationResponse {
-  valid: boolean;
+  success: boolean;
   agent?: MoltbookAgent;
   error?: string;
+  hint?: string;
 }
 
 // Privy types
@@ -172,4 +191,39 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 // Context types for Hono
 export interface AgentContext {
   agent: Agent;
+}
+
+// Fee sharing types
+export interface FeeShareholder {
+  address: string;
+  shareBps: number; // Basis points (100 bps = 1%)
+}
+
+export interface FeeSharingConfig {
+  mint: string;
+  shareholders: FeeShareholder[];
+  authority: string;
+  configPda: string;
+}
+
+export interface FeeSharingSetupResult {
+  success: boolean;
+  configPda?: string;
+  setupTxSignature?: string;
+  updateTxSignature?: string;
+  transferAuthorityTxSignature?: string;
+  error?: string;
+}
+
+export interface FeeDistributionResult {
+  success: boolean;
+  txSignature?: string;
+  amountDistributed?: number; // In lamports
+  error?: string;
+}
+
+export interface TokenWithFeeSharing extends Token {
+  fee_sharing_config_pda: string | null;
+  fee_sharing_enabled: boolean;
+  fee_sharing_setup_tx: string | null;
 }

@@ -5,7 +5,7 @@ import { registrationRateLimiter } from '../middleware/rate-limiter.js';
 import { agentService } from '../services/agent.service.js';
 import { privyService } from '../services/privy.service.js';
 import { moltbookService } from '../services/moltbook.service.js';
-import { registerAgentSchema } from '../schemas/agents.js';
+import { registerAgentSchema, updateAgentSchema } from '../schemas/agents.js';
 import { tokenQueries } from '../db/queries.js';
 import { ConflictError } from '../utils/errors.js';
 
@@ -18,7 +18,7 @@ agents.post(
   moltbookAuthLight,
   zValidator('json', registerAgentSchema),
   async (c) => {
-    const { twitter_handle } = c.req.valid('json');
+    const input = c.req.valid('json');
     const apiKey = c.get('apiKey');
     const moltbookAgent = c.get('moltbookAgent');
 
@@ -28,16 +28,31 @@ agents.post(
       throw new ConflictError(`Agent '${moltbookAgent.name}' is already registered`);
     }
 
-    // Create Privy user and wallet for the agent
-    const { userId, walletAddress } = await privyService.getOrCreateWallet(twitter_handle);
+    let solanaWalletAddress: string;
+    let privyUserId: string | null = null;
+    let twitterHandle: string | null = null;
+
+    if (input.twitter_handle) {
+      // Option 1: Create Privy user and wallet linked to Twitter
+      const { userId, walletAddress } = await privyService.getOrCreateWallet(input.twitter_handle);
+      solanaWalletAddress = walletAddress;
+      privyUserId = userId;
+      twitterHandle = input.twitter_handle;
+    } else if (input.wallet_address) {
+      // Option 2: Use provided wallet address directly
+      solanaWalletAddress = input.wallet_address;
+    } else {
+      // This shouldn't happen due to schema validation, but just in case
+      throw new Error('Either twitter_handle or wallet_address is required');
+    }
 
     // Create agent in our database
     const agent = await agentService.create({
       moltbook_name: moltbookAgent.name,
       moltbook_api_key_hash: moltbookService.hashApiKey(apiKey),
-      twitter_handle,
-      privy_user_id: userId,
-      solana_wallet_address: walletAddress,
+      twitter_handle: twitterHandle,
+      privy_user_id: privyUserId,
+      solana_wallet_address: solanaWalletAddress,
       is_active: true,
     });
 
@@ -104,14 +119,13 @@ agents.get('/me/stats', moltbookAuth, async (c) => {
 agents.patch(
   '/me',
   moltbookAuth,
-  zValidator('json', registerAgentSchema.partial()),
+  zValidator('json', updateAgentSchema),
   async (c) => {
     const agent = c.get('agent');
     const updates = c.req.valid('json');
 
-    // If twitter handle is being updated, we might need to update Privy
+    // If twitter handle is being updated, create new Privy wallet
     if (updates.twitter_handle && updates.twitter_handle !== agent.twitter_handle) {
-      // Create new wallet for new twitter handle
       const { userId, walletAddress } = await privyService.getOrCreateWallet(updates.twitter_handle);
 
       const updatedAgent = await agentService.update(agent.id, {
@@ -127,7 +141,27 @@ agents.patch(
           moltbook_name: updatedAgent.moltbook_name,
           twitter_handle: updatedAgent.twitter_handle,
           solana_wallet_address: updatedAgent.solana_wallet_address,
-          message: 'Profile updated. Note: Your wallet address has changed.',
+          message: 'Profile updated. Your wallet address has been updated.',
+        },
+      });
+    }
+
+    // If wallet address is being updated directly
+    if (updates.wallet_address && updates.wallet_address !== agent.solana_wallet_address) {
+      const updatedAgent = await agentService.update(agent.id, {
+        twitter_handle: null, // Clear Twitter link when using direct wallet
+        privy_user_id: null,
+        solana_wallet_address: updates.wallet_address,
+      });
+
+      return c.json({
+        success: true,
+        data: {
+          id: updatedAgent.id,
+          moltbook_name: updatedAgent.moltbook_name,
+          twitter_handle: updatedAgent.twitter_handle,
+          solana_wallet_address: updatedAgent.solana_wallet_address,
+          message: 'Wallet address updated.',
         },
       });
     }

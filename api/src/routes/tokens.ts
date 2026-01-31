@@ -42,8 +42,8 @@ tokens.post(
     });
 
     try {
-      // Launch token on Pump.fun (gasless)
-      const result = await pumpfunService.launchToken(
+      // Launch token on Pump.fun with fee sharing (40% agent / 60% platform)
+      const result = await pumpfunService.launchTokenWithFeeSharing(
         {
           name: params.name,
           symbol: params.symbol,
@@ -85,6 +85,19 @@ tokens.post(
       // Update launch record with success
       await launchQueries.complete(launch.id, true, token.id, result.txSignature);
 
+      // Build fee sharing info for response
+      const feeSharingInfo = result.feeSharingSetup?.success
+        ? {
+            enabled: true,
+            config_pda: result.feeSharingSetup.configPda,
+            agent_share: '40%',
+            platform_share: '60%',
+          }
+        : {
+            enabled: false,
+            error: result.feeSharingSetup?.error,
+          };
+
       return c.json({
         success: true,
         data: {
@@ -97,7 +110,8 @@ tokens.post(
             launched_at: token.launched_at,
           },
           tx_signature: result.txSignature,
-          message: `Token ${params.symbol} launched successfully! Creator fees will be sent to ${agent.solana_wallet_address}`,
+          fee_sharing: feeSharingInfo,
+          message: `Token ${params.symbol} launched successfully! You'll receive 40% of creator fees to ${agent.solana_wallet_address}`,
         },
       }, 201);
     } catch (error) {

@@ -7,14 +7,19 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:wallet": "tsx scripts/create-wallet.ts",
+    "test:launch": "tsx scripts/test-launch.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.4.2",
     "@privy-io/node": "^0.8.0",
+    "@pump-fun/pump-sdk": "^1.24.0",
     "@solana/web3.js": "^1.98.0",
     "@supabase/supabase-js": "^2.47.10",
+    "bs58": "^6.0.0",
+    "dotenv": "^17.2.3",
     "hono": "^4.6.14",
     "zod": "^3.24.1"
   },

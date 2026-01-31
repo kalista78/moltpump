@@ -9,9 +9,12 @@ const envSchema = z.object({
   PRIVY_APP_ID: z.string().min(1),
   PRIVY_APP_SECRET: z.string().min(1),
 
-  // Solana (RPC for balance checks, wallet optional for non-gasless mode)
-  HELIUS_RPC_URL: z.string().url(),
-  PLATFORM_WALLET_PRIVATE_KEY: z.string().optional(),
+  // Solana RPC and wallet
+  SOLANA_RPC_URL: z.string().url(),
+  PLATFORM_WALLET_PRIVATE_KEY: z.string().min(1), // Required for fee sharing transactions
+
+  // Fee Sharing - MoltPump treasury receives 60% of creator fees
+  MOLTPUMP_TREASURY_WALLET: z.string().min(32).max(44), // Solana base58 address
 
   // App
   PORT: z.coerce.number().default(3000),
