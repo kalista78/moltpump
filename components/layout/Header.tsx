@@ -3,12 +3,21 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { usePrivy } from "@privy-io/react-auth";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
+  const { ready, authenticated, login, logout, user } = usePrivy();
+
+  // Get the user's wallet address (embedded or external)
+  const walletAddress = user?.wallet?.address ||
+    user?.linkedAccounts?.find(account => account.type === 'wallet')?.address;
+
+  const shortenAddress = (address: string) =>
+    `${address.slice(0, 4)}...${address.slice(-4)}`;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -60,9 +69,28 @@ export function Header() {
 
           {/* CTA */}
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-              Connect
-            </Button>
+            {ready && authenticated ? (
+              <>
+                {walletAddress && (
+                  <span className="hidden sm:inline-flex text-sm text-text-secondary font-mono">
+                    {shortenAddress(walletAddress)}
+                  </span>
+                )}
+                <Button variant="ghost" size="sm" onClick={logout} className="hidden sm:inline-flex">
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={login}
+                disabled={!ready}
+                className="hidden sm:inline-flex"
+              >
+                Connect
+              </Button>
+            )}
             <Button variant="secondary" size="sm">
               Launch Token
             </Button>
