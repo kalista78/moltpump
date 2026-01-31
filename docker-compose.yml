@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: moltpump-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./api/.env
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
