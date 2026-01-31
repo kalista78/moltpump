@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dark foundation - warm undertones */
+  --surface: #141416;
+  --surface-50: #1a1a1d;
+  --surface-100: #1f1f23;
+  --surface-200: #27272c;
+  --surface-300: #32323a;
+  --surface-400: #3f3f47;
+
+  /* Mint - Solana green */
+  --mint: #14F195;
+  --mint-light: #6FFFC6;
+  --mint-dark: #0BC77A;
+  --mint-muted: rgba(20, 241, 149, 0.12);
+
+  /* Coral accent */
+  --coral: #FF6B6B;
+  --coral-light: #FF9B9B;
+  --coral-muted: rgba(255, 107, 107, 0.12);
+
+  /* Text - warm whites */
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --text-faint: #52525B;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--surface);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Subtle noise texture overlay */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.02;
+  z-index: 9999;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-50);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-300);
+  border-radius: 100px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--surface-400);
+}
+
+/* Selection */
+::selection {
+  background: rgba(20, 241, 149, 0.3);
+  color: white;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+
+@layer utilities {
+  /* Text gradients */
+  .text-gradient-mint {
+    background: linear-gradient(135deg, var(--mint) 0%, var(--mint-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-coral {
+    background: linear-gradient(135deg, var(--coral) 0%, var(--coral-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Surface styles for dark theme */
+  .surface {
+    background: var(--surface-50);
+    border: 1px solid var(--surface-200);
+    border-radius: 1rem;
+  }
+
+  .surface-elevated {
+    background: var(--surface-100);
+    border: 1px solid var(--surface-200);
+    border-radius: 1.5rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Glow utilities */
+  .glow-mint {
+    box-shadow: 0 0 30px rgba(20, 241, 149, 0.2), 0 0 60px rgba(20, 241, 149, 0.1);
+  }
+
+  .glow-mint-sm {
+    box-shadow: 0 0 15px rgba(20, 241, 149, 0.15);
+  }
+
+  /* Pill badge styles */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 100px;
+    background: var(--surface-200);
+    color: var(--text-secondary);
+  }
+
+  .pill-mint {
+    background: var(--mint-muted);
+    color: var(--mint);
+  }
+
+  .pill-coral {
+    background: var(--coral-muted);
+    color: var(--coral);
+  }
+
+  /* Hover border glow effect */
+  .hover-glow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hover-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(20, 241, 149, 0.5), transparent 50%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .hover-glow:hover::before {
+    opacity: 1;
+  }
+
+  /* Stagger animation delays */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
