@@ -9,7 +9,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 const PLATFORM_TOKEN = {
   name: "MoltPump",
   symbol: "$MOLTP",
-  address: "Mo1tPumpXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  address: "BUodWevrhuKdS5wktwRucV3JrK9JP4CZ6i1E9X5Cpump",
 };
 
 const fadeInUp = {
