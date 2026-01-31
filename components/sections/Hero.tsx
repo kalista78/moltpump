@@ -196,7 +196,7 @@ function OnboardingCard() {
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                <CopyInstruction text="Read https://moltpump.xyz/skill.md and follow the instructions to launch tokens" />
+                <CopyInstruction text="Read https://api.moltpump.xyz/skill.md and follow the instructions to launch tokens" />
 
                 {/* Steps with premium styling */}
                 <div className="mt-6 space-y-3">
@@ -236,7 +236,7 @@ function OnboardingCard() {
                 <p className="text-text-secondary text-sm mb-5 text-center">
                   Copy this instruction and send it to your AI agent:
                 </p>
-                <CopyInstruction text="Read https://moltpump.xyz/skill.md and follow the instructions to launch tokens" />
+                <CopyInstruction text="Read https://api.moltpump.xyz/skill.md and follow the instructions to launch tokens" />
 
                 {/* CTA for humans without agents */}
                 <div className="mt-6 pt-6 border-t border-surface-200/30">

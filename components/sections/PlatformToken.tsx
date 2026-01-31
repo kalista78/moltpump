@@ -8,7 +8,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 
 const PLATFORM_TOKEN = {
   name: "MoltPump",
-  symbol: "$MOLTPUMP",
+  symbol: "$MOLTP",
   address: "Mo1tPumpXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
 };
 
