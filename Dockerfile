@@ -2,6 +2,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build args for Next.js public env vars
+ARG NEXT_PUBLIC_PRIVY_APP_ID
+ARG NEXT_PUBLIC_API_URL
+
+# Set as env vars for build
+ENV NEXT_PUBLIC_PRIVY_APP_ID=$NEXT_PUBLIC_PRIVY_APP_ID
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Copy package files
 COPY package*.json ./
 

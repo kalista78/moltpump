@@ -20,13 +20,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_PRIVY_APP_ID: cml2sfgdb02b5jm0blklh0yr5
+        NEXT_PUBLIC_API_URL: https://api.moltpump.xyz
     container_name: moltpump-frontend
     restart: unless-stopped
     ports:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.moltpump.xyz
     depends_on:
       api:
         condition: service_healthy
