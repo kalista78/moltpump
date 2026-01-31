@@ -39,3 +39,7 @@ coverage/
 # Misc
 .vercel
 .turbo
+
+# Claude
+claude.md
+CLAUDE.md
