@@ -11,6 +11,9 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Create public dir if it doesn't exist
+RUN mkdir -p public
+
 # Build Next.js
 RUN npm run build
 
