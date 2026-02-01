@@ -1,20 +1,16 @@
+import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { PumpSdk } from '@pump-fun/pump-sdk';
 import { PUMP_FUN } from '../config/constants.js';
 import { PumpFunError, ValidationError } from '../utils/errors.js';
-import { isValidPublicKey, getPumpFunUrl } from '../utils/solana.js';
+import { isValidPublicKey, getPumpFunUrl, getConnection } from '../utils/solana.js';
 import { storageService } from './storage.service.js';
 import { feeSharingService } from './fee-sharing.service.js';
+import { env } from '../config/env.js';
+import bs58 from 'bs58';
 import type { TokenLaunchParams, TokenLaunchResult, FeeSharingSetupResult } from '../types/index.js';
 
 interface IpfsUploadResponse {
   metadataUri: string;
-}
-
-interface CreateTokenResponse {
-  success: boolean;
-  mint?: string;
-  txSignature?: string;
-  bondingCurve?: string;
-  error?: string;
 }
 
 interface TokenLaunchResultWithFeeSharing extends TokenLaunchResult {
@@ -23,7 +19,23 @@ interface TokenLaunchResultWithFeeSharing extends TokenLaunchResult {
 
 class PumpFunService {
   private ipfsUrl = PUMP_FUN.IPFS_UPLOAD_URL;
-  private createUrl = PUMP_FUN.CREATE_TOKEN_URL;
+  private offlineSdk: PumpSdk | null = null;
+
+  private getOfflineSDK(): PumpSdk {
+    if (!this.offlineSdk) {
+      this.offlineSdk = new PumpSdk();
+    }
+    return this.offlineSdk;
+  }
+
+  private getPlatformWallet(): Keypair {
+    try {
+      const secretKey = bs58.decode(env.PLATFORM_WALLET_PRIVATE_KEY);
+      return Keypair.fromSecretKey(secretKey);
+    } catch {
+      throw new PumpFunError('Invalid platform wallet private key');
+    }
+  }
 
   /**
    * Upload token metadata and image to Pump.fun's IPFS
@@ -77,8 +89,8 @@ class PumpFunService {
   }
 
   /**
-   * Launch a token using Pump.fun's gasless API
-   * Pump.fun covers the transaction fees, creator wallet receives creator fees
+   * Launch a token using Pump.fun's on-chain SDK
+   * Platform wallet pays for transaction, creator receives creator fees
    */
   async launchToken(
     params: TokenLaunchParams,
@@ -94,58 +106,51 @@ class PumpFunService {
 
       console.log(`Launching token ${params.symbol} for creator ${creatorWalletAddress}`);
 
+      const sdk = this.getOfflineSDK();
+      const connection = getConnection();
+      const platformWallet = this.getPlatformWallet();
+
       // Step 1: Upload metadata to IPFS
       const { metadataUri } = await this.uploadMetadata(params);
       console.log(`Metadata uploaded: ${metadataUri}`);
 
-      // Step 2: Call Pump.fun's gasless create endpoint
-      const createPayload = {
+      // Step 2: Generate a new mint keypair for the token
+      const mintKeypair = Keypair.generate();
+      console.log(`Generated mint: ${mintKeypair.publicKey.toBase58()}`);
+
+      // Step 3: Build the create instruction using the SDK
+      // The creator is set to the agent's wallet so they receive creator fees
+      const createIx = await sdk.createInstruction({
+        mint: mintKeypair.publicKey,
         name: params.name,
         symbol: params.symbol,
-        description: params.description,
-        metadataUri,
-        creator: creatorWalletAddress,
-        twitter: params.twitter || null,
-        telegram: params.telegram || null,
-        website: params.website || null,
-      };
-
-      const response = await fetch(this.createUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(createPayload),
+        uri: metadataUri,
+        creator: new PublicKey(creatorWalletAddress), // Agent receives creator fees
+        user: platformWallet.publicKey, // Platform wallet pays for tx
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Pump.fun create failed: ${response.status} - ${errorText}`);
+      // Step 5: Build and send transaction
+      const tx = new Transaction().add(createIx);
+      tx.feePayer = platformWallet.publicKey;
+      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
 
-        // Try to parse error response
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new PumpFunError(errorJson.error || errorJson.message || `Create failed: ${response.status}`);
-        } catch (parseError) {
-          throw new PumpFunError(`Token creation failed: ${response.status}`);
-        }
-      }
-
-      const result = await response.json() as CreateTokenResponse;
-
-      if (!result.success || !result.mint) {
-        throw new PumpFunError(result.error || 'Token creation failed - no mint returned');
-      }
+      // Sign with both platform wallet (payer) and mint keypair
+      const txSignature = await sendAndConfirmTransaction(
+        connection,
+        tx,
+        [platformWallet, mintKeypair],
+        { commitment: 'confirmed' }
+      );
 
       const duration = Date.now() - startTime;
-      console.log(`Token launched in ${duration}ms: ${result.mint}`);
+      console.log(`Token launched in ${duration}ms: ${mintKeypair.publicKey.toBase58()}`);
+      console.log(`Transaction: ${txSignature}`);
 
       return {
         success: true,
-        mint: result.mint,
-        txSignature: result.txSignature,
-        bondingCurveAddress: result.bondingCurve,
-        pumpfunUrl: getPumpFunUrl(result.mint),
+        mint: mintKeypair.publicKey.toBase58(),
+        txSignature,
+        pumpfunUrl: getPumpFunUrl(mintKeypair.publicKey.toBase58()),
         metadataUri,
       };
     } catch (error) {
