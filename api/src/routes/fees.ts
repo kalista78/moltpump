@@ -3,8 +3,9 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { moltbookAuth } from '../middleware/moltbook-auth.js';
 import { feeSharingService } from '../services/fee-sharing.service.js';
+import { schedulerService } from '../services/scheduler.service.js';
 import { tokenQueries } from '../db/queries.js';
-import { FEE_SHARING } from '../config/constants.js';
+import { FEE_SHARING, SOLANA } from '../config/constants.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
 
 const fees = new Hono();
@@ -228,6 +229,35 @@ fees.get(
         agent_share_percent: FEE_SHARING.AGENT_SHARE_BPS / 100,
         estimated_agent_earnings_lamports: Math.floor(totalVaultBalance * FEE_SHARING.AGENT_SHARE_BPS / 10000),
         tokens: tokenStats,
+      },
+    });
+  }
+);
+
+/**
+ * Manually trigger auto-distribution for all tokens above threshold
+ * This is an admin endpoint - triggers distribution for ALL tokens platform-wide
+ */
+fees.post(
+  '/auto-distribute',
+  moltbookAuth,
+  async (c) => {
+    console.log('[AutoDistribute] Manual trigger initiated');
+
+    const result = await schedulerService.triggerAutoDistribute();
+
+    return c.json({
+      success: true,
+      data: {
+        tokens_checked: result.tokensChecked,
+        tokens_distributed: result.tokensDistributed,
+        total_distributed_lamports: result.totalDistributedLamports,
+        total_distributed_sol: result.totalDistributedLamports / SOLANA.LAMPORTS_PER_SOL,
+        threshold_sol: FEE_SHARING.AUTO_DISTRIBUTE_THRESHOLD_LAMPORTS / SOLANA.LAMPORTS_PER_SOL,
+        results: result.results.map(r => ({
+          ...r,
+          amount_sol: r.amountLamports ? r.amountLamports / SOLANA.LAMPORTS_PER_SOL : undefined,
+        })),
       },
     });
   }

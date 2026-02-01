@@ -59,8 +59,19 @@ export const FEE_SHARING = {
   // Minimum accumulated fees before distribution (in lamports)
   MIN_DISTRIBUTABLE_LAMPORTS: 10_000_000, // 0.01 SOL
 
+  // Auto-distribution threshold (in lamports)
+  AUTO_DISTRIBUTE_THRESHOLD_LAMPORTS: 1_000_000_000, // 1 SOL
+
   // Program IDs for fee sharing
   PUMP_PROGRAM_ID: '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P',
   PUMP_AMM_PROGRAM_ID: 'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA',
   PUMP_FEES_PROGRAM_ID: 'pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ',
+} as const;
+
+export const SCHEDULER = {
+  // Auto-distribution cron schedule (every 10 minutes)
+  AUTO_DISTRIBUTE_CRON: '*/10 * * * *',
+
+  // Delay between token distributions (ms)
+  DISTRIBUTION_DELAY_MS: 1000,
 } as const;

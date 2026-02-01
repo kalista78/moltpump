@@ -101,6 +101,21 @@ export const tokenQueries = {
     if (error) throw error;
     return data || [];
   },
+
+  /**
+   * List all active tokens for auto-distribution
+   * Returns all tokens with 'active' status
+   */
+  async listAllActive(): Promise<Token[]> {
+    const { data, error } = await db
+      .from('tokens')
+      .select('*')
+      .eq('status', 'active')
+      .order('launched_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
 };
 
 // Launch queries

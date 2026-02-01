@@ -3,6 +3,7 @@ import { app } from './app.js';
 import { env } from './config/env.js';
 import { checkDatabaseConnection } from './db/client.js';
 import { checkRpcHealth } from './utils/solana.js';
+import { schedulerService } from './services/scheduler.service.js';
 
 async function main() {
   console.log('🚀 Starting MoltPump API...');
@@ -31,6 +32,10 @@ async function main() {
     console.warn('   ⚠️  Solana RPC unavailable (balance lookups will fail)');
   }
 
+  // Start scheduler for background tasks
+  console.log('\n⏰ Starting background scheduler...');
+  schedulerService.start();
+
   // Start server
   console.log('\n🌐 Starting HTTP server...');
 
@@ -49,6 +54,8 @@ async function main() {
     console.log('   POST   /api/v1/tokens/launch    - Launch token (gasless)');
     console.log('   GET    /api/v1/tokens           - List tokens');
     console.log('   POST   /api/v1/upload/image     - Upload image');
+    console.log('\n🤖 Background Tasks:');
+    console.log('   Auto-distribute fees every 10 min (threshold: 1 SOL)');
     console.log('');
   });
 }
@@ -67,11 +74,13 @@ process.on('unhandledRejection', (reason) => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n\n👋 Shutting down gracefully...');
+  schedulerService.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log('\n\n👋 Shutting down gracefully...');
+  schedulerService.stop();
   process.exit(0);
 });
 
