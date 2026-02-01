@@ -45,6 +45,7 @@ fees.get(
         data: {
           mint_address: mint,
           fee_sharing_enabled: hasConfig,
+          buyback_enabled: token.buyback_enabled,
           vault_balance_lamports: vaultBalance,
           min_distributable_lamports: minDistributable,
           can_distribute: hasConfig && vaultBalance >= minDistributable,
@@ -52,6 +53,9 @@ fees.get(
             agent_percent: FEE_SHARING.AGENT_SHARE_BPS / 100,
             platform_percent: FEE_SHARING.PLATFORM_SHARE_BPS / 100,
           },
+          fee_destination: token.buyback_enabled
+            ? 'buyback_and_burn'
+            : 'agent_wallet',
         },
       });
     } catch (error) {
@@ -251,6 +255,7 @@ fees.post(
       data: {
         tokens_checked: result.tokensChecked,
         tokens_distributed: result.tokensDistributed,
+        tokens_buyback: result.tokensBuyback,
         total_distributed_lamports: result.totalDistributedLamports,
         total_distributed_sol: result.totalDistributedLamports / SOLANA.LAMPORTS_PER_SOL,
         threshold_sol: FEE_SHARING.AUTO_DISTRIBUTE_THRESHOLD_LAMPORTS / SOLANA.LAMPORTS_PER_SOL,

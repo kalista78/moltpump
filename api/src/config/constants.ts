@@ -75,3 +75,17 @@ export const SCHEDULER = {
   // Delay between token distributions (ms)
   DISTRIBUTION_DELAY_MS: 1000,
 } as const;
+
+export const BUYBACK = {
+  // Slippage tolerance for buyback trades (5%)
+  SLIPPAGE_BPS: 500,
+
+  // Solana burn address (system program - tokens sent here are unrecoverable)
+  BURN_ADDRESS: '1nc1nerator11111111111111111111111111111111',
+
+  // Maximum retries for buyback transaction
+  MAX_RETRIES: 3,
+
+  // Delay between retries (ms)
+  RETRY_DELAY_MS: 2000,
+} as const;

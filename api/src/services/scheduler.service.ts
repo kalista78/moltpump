@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { tokenQueries } from '../db/queries.js';
 import { feeSharingService } from './fee-sharing.service.js';
+import { buybackService } from './buyback.service.js';
 import { FEE_SHARING, SCHEDULER, SOLANA } from '../config/constants.js';
 
 /**
@@ -85,16 +86,47 @@ class SchedulerService {
 
           // Check if balance exceeds auto-distribute threshold (1 SOL)
           if (balance >= FEE_SHARING.AUTO_DISTRIBUTE_THRESHOLD_LAMPORTS) {
-            console.log(`[AutoDistribute] ${token.symbol}: ${balance / SOLANA.LAMPORTS_PER_SOL} SOL >= threshold, distributing...`);
+            console.log(`[AutoDistribute] ${token.symbol}: ${balance / SOLANA.LAMPORTS_PER_SOL} SOL >= threshold`);
 
-            const result = await feeSharingService.distributeCreatorFees(token.mint_address);
+            // Check if buyback is enabled for this token
+            if (token.buyback_enabled) {
+              console.log(`[AutoDistribute] ${token.symbol}: Buyback enabled, executing buyback...`);
 
-            if (result.success) {
-              tokensDistributed++;
-              totalDistributed += result.amountDistributed || 0;
-              console.log(`[AutoDistribute] ${token.symbol}: Distributed ${(result.amountDistributed || 0) / SOLANA.LAMPORTS_PER_SOL} SOL (tx: ${result.txSignature})`);
+              // First distribute fees to unlock them from the vault
+              const distributeResult = await feeSharingService.distributeCreatorFees(token.mint_address);
+
+              if (distributeResult.success && distributeResult.amountDistributed) {
+                // Calculate agent's share (70%) for buyback
+                const agentShare = buybackService.calculateAgentShare(distributeResult.amountDistributed);
+
+                console.log(`[AutoDistribute] ${token.symbol}: Buying back with ${agentShare / SOLANA.LAMPORTS_PER_SOL} SOL (agent's 70% share)`);
+
+                const buybackResult = await buybackService.executeBuyback(token.mint_address, agentShare);
+
+                if (buybackResult.success) {
+                  tokensDistributed++;
+                  totalDistributed += distributeResult.amountDistributed;
+                  console.log(`[AutoDistribute] ${token.symbol}: Buyback success! Burned ${buybackResult.tokensBought} tokens (buy: ${buybackResult.buyTxSignature}, burn: ${buybackResult.burnTxSignature})`);
+                } else {
+                  console.error(`[AutoDistribute] ${token.symbol}: Buyback failed - ${buybackResult.error}`);
+                  // Note: Distribution already happened, so fees went to normal shareholders
+                }
+              } else {
+                console.error(`[AutoDistribute] ${token.symbol}: Distribution failed before buyback - ${distributeResult.error}`);
+              }
             } else {
-              console.error(`[AutoDistribute] ${token.symbol}: Distribution failed - ${result.error}`);
+              // Normal distribution (no buyback)
+              console.log(`[AutoDistribute] ${token.symbol}: Distributing fees...`);
+
+              const result = await feeSharingService.distributeCreatorFees(token.mint_address);
+
+              if (result.success) {
+                tokensDistributed++;
+                totalDistributed += result.amountDistributed || 0;
+                console.log(`[AutoDistribute] ${token.symbol}: Distributed ${(result.amountDistributed || 0) / SOLANA.LAMPORTS_PER_SOL} SOL (tx: ${result.txSignature})`);
+              } else {
+                console.error(`[AutoDistribute] ${token.symbol}: Distribution failed - ${result.error}`);
+              }
             }
 
             // Delay between distributions to avoid rate limits
@@ -121,11 +153,14 @@ class SchedulerService {
     tokensChecked: number;
     tokensDistributed: number;
     totalDistributedLamports: number;
+    tokensBuyback: number;
     results: Array<{
       mint: string;
       symbol: string;
       success: boolean;
       amountLamports?: number;
+      buybackEnabled?: boolean;
+      tokensBurned?: number;
       error?: string;
     }>;
   }> {
@@ -135,11 +170,14 @@ class SchedulerService {
       symbol: string;
       success: boolean;
       amountLamports?: number;
+      buybackEnabled?: boolean;
+      tokensBurned?: number;
       error?: string;
     }> = [];
 
     let tokensChecked = 0;
     let tokensDistributed = 0;
+    let tokensBuyback = 0;
     let totalDistributed = 0;
 
     for (const token of tokens) {
@@ -151,24 +189,67 @@ class SchedulerService {
         const balance = await feeSharingService.getCreatorVaultBalance(token.mint_address);
 
         if (balance >= FEE_SHARING.AUTO_DISTRIBUTE_THRESHOLD_LAMPORTS) {
-          const result = await feeSharingService.distributeCreatorFees(token.mint_address);
+          if (token.buyback_enabled) {
+            // Buyback mode: distribute fees, then use agent's share to buy and burn
+            const distributeResult = await feeSharingService.distributeCreatorFees(token.mint_address);
 
-          if (result.success) {
-            tokensDistributed++;
-            totalDistributed += result.amountDistributed || 0;
-            results.push({
-              mint: token.mint_address,
-              symbol: token.symbol,
-              success: true,
-              amountLamports: result.amountDistributed,
-            });
+            if (distributeResult.success && distributeResult.amountDistributed) {
+              const agentShare = buybackService.calculateAgentShare(distributeResult.amountDistributed);
+              const buybackResult = await buybackService.executeBuyback(token.mint_address, agentShare);
+
+              if (buybackResult.success) {
+                tokensDistributed++;
+                tokensBuyback++;
+                totalDistributed += distributeResult.amountDistributed;
+                results.push({
+                  mint: token.mint_address,
+                  symbol: token.symbol,
+                  success: true,
+                  amountLamports: distributeResult.amountDistributed,
+                  buybackEnabled: true,
+                  tokensBurned: buybackResult.tokensBought,
+                });
+              } else {
+                results.push({
+                  mint: token.mint_address,
+                  symbol: token.symbol,
+                  success: false,
+                  buybackEnabled: true,
+                  error: `Buyback failed: ${buybackResult.error}`,
+                });
+              }
+            } else {
+              results.push({
+                mint: token.mint_address,
+                symbol: token.symbol,
+                success: false,
+                buybackEnabled: true,
+                error: distributeResult.error,
+              });
+            }
           } else {
-            results.push({
-              mint: token.mint_address,
-              symbol: token.symbol,
-              success: false,
-              error: result.error,
-            });
+            // Normal distribution
+            const result = await feeSharingService.distributeCreatorFees(token.mint_address);
+
+            if (result.success) {
+              tokensDistributed++;
+              totalDistributed += result.amountDistributed || 0;
+              results.push({
+                mint: token.mint_address,
+                symbol: token.symbol,
+                success: true,
+                amountLamports: result.amountDistributed,
+                buybackEnabled: false,
+              });
+            } else {
+              results.push({
+                mint: token.mint_address,
+                symbol: token.symbol,
+                success: false,
+                buybackEnabled: false,
+                error: result.error,
+              });
+            }
           }
 
           await new Promise(resolve => setTimeout(resolve, SCHEDULER.DISTRIBUTION_DELAY_MS));
@@ -187,6 +268,7 @@ class SchedulerService {
       tokensChecked,
       tokensDistributed,
       totalDistributedLamports: totalDistributed,
+      tokensBuyback,
       results,
     };
   }

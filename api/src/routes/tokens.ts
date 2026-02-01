@@ -10,6 +10,7 @@ import {
   listTokensQuerySchema,
   tokenIdParamSchema,
   mintAddressParamSchema,
+  updateBuybackSchema,
 } from '../schemas/tokens.js';
 import { launchFromPostSchema } from '../schemas/posts.js';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
@@ -110,6 +111,7 @@ tokens.post(
         initial_buy_sol: null, // Gasless launches don't support initial buys
         launch_tx_signature: result.txSignature || null,
         status: 'active',
+        buyback_enabled: params.buyback_enabled ?? false,
       });
 
       // Update launch record with success
@@ -151,6 +153,11 @@ tokens.post(
           : { posted: false, error: postResult.error };
       }
 
+      // Build message based on buyback setting
+      const feeMessage = params.buyback_enabled
+        ? `Token ${params.symbol} launched with buyback enabled! 70% of creator fees will auto-buy and burn tokens.`
+        : `Token ${params.symbol} launched successfully! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`;
+
       return c.json({
         success: true,
         data: {
@@ -161,11 +168,12 @@ tokens.post(
             symbol: token.symbol,
             pumpfun_url: token.pumpfun_url,
             launched_at: token.launched_at,
+            buyback_enabled: token.buyback_enabled,
           },
           tx_signature: result.txSignature,
           fee_sharing: feeSharingInfo,
           announcement,
-          message: `Token ${params.symbol} launched successfully! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
+          message: feeMessage,
         },
       }, 201);
     } catch (error) {
@@ -281,6 +289,7 @@ tokens.post(
         initial_buy_sol: null,
         launch_tx_signature: result.txSignature || null,
         status: 'active',
+        buyback_enabled: params.buyback_enabled ?? false,
       });
 
       // Update launch record with success
@@ -299,6 +308,11 @@ tokens.post(
             error: result.feeSharingSetup?.error,
           };
 
+      // Build message based on buyback setting
+      const feeMessage = params.buyback_enabled
+        ? `Token ${params.symbol} launched with buyback enabled! 70% of creator fees will auto-buy and burn tokens.`
+        : `Token ${params.symbol} launched from your Moltbook post! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`;
+
       return c.json({
         success: true,
         data: {
@@ -309,6 +323,7 @@ tokens.post(
             symbol: token.symbol,
             pumpfun_url: token.pumpfun_url,
             launched_at: token.launched_at,
+            buyback_enabled: token.buyback_enabled,
           },
           source_post: {
             id: post.id,
@@ -317,7 +332,7 @@ tokens.post(
           },
           tx_signature: result.txSignature,
           fee_sharing: feeSharingInfo,
-          message: `Token ${params.symbol} launched from your Moltbook post! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
+          message: feeMessage,
         },
       }, 201);
     } catch (error) {
@@ -437,6 +452,49 @@ tokens.get(
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+      },
+    });
+  }
+);
+
+// Toggle buyback mode for a token
+tokens.patch(
+  '/mint/:mint/buyback',
+  moltbookAuth,
+  zValidator('param', mintAddressParamSchema),
+  zValidator('json', updateBuybackSchema),
+  async (c) => {
+    const agent = c.get('agent');
+    const { mint } = c.req.valid('param');
+    const { buyback_enabled } = c.req.valid('json');
+
+    // Find token and verify ownership
+    const token = await tokenQueries.findByMintAddress(mint);
+
+    if (!token) {
+      throw new NotFoundError(`Token with mint '${mint}' not found`);
+    }
+
+    if (token.agent_id !== agent.id) {
+      throw new ForbiddenError('You can only modify your own tokens');
+    }
+
+    // Update buyback setting
+    const updatedToken = await tokenQueries.update(token.id, {
+      buyback_enabled,
+    });
+
+    const message = buyback_enabled
+      ? 'Buyback enabled! Creator fees (70%) will now be used to buy and burn tokens.'
+      : 'Buyback disabled. Creator fees (70%) will be distributed to your wallet.';
+
+    return c.json({
+      success: true,
+      data: {
+        mint_address: updatedToken.mint_address,
+        symbol: updatedToken.symbol,
+        buyback_enabled: updatedToken.buyback_enabled,
+        message,
       },
     });
   }

@@ -52,6 +52,12 @@ export const launchFromPostSchema = z.object({
     .string()
     .url('Website must be a valid URL')
     .optional(),
+
+  // Enable buyback mode: creator fees are used to buy and burn tokens
+  buyback_enabled: z
+    .boolean()
+    .optional()
+    .default(false),
 });
 
 export type LaunchFromPostInput = z.infer<typeof launchFromPostSchema>;

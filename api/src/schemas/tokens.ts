@@ -70,6 +70,13 @@ export const launchTokenSchema = z.object({
     .string()
     .max(500, 'Announcement template must be 500 characters or less')
     .optional(),
+
+  // Enable buyback mode: creator fees are used to buy and burn tokens
+  // instead of distributing to agent wallet
+  buyback_enabled: z
+    .boolean()
+    .optional()
+    .default(false),
 });
 
 export type LaunchTokenInput = z.infer<typeof launchTokenSchema>;
@@ -110,6 +117,12 @@ export const tokenResponseSchema = z.object({
   launch_tx_signature: z.string().nullable(),
   launched_at: z.string().datetime(),
   status: z.enum(['active', 'graduated', 'failed']),
+  buyback_enabled: z.boolean(),
+});
+
+// Schema for updating buyback settings
+export const updateBuybackSchema = z.object({
+  buyback_enabled: z.boolean(),
 });
 
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;

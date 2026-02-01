@@ -70,11 +70,13 @@ export interface Token {
   launch_tx_signature: string | null;
   launched_at: string;
   status: 'active' | 'graduated' | 'failed';
+  buyback_enabled: boolean;
 }
 
-export type TokenInsert = Omit<Token, 'id' | 'launched_at'> & {
+export type TokenInsert = Omit<Token, 'id' | 'launched_at' | 'buyback_enabled'> & {
   id?: string;
   launched_at?: string;
+  buyback_enabled?: boolean;
 };
 
 export type TokenUpdate = Partial<TokenInsert>;
@@ -274,4 +276,14 @@ export interface TokenWithFeeSharing extends Token {
   fee_sharing_config_pda: string | null;
   fee_sharing_enabled: boolean;
   fee_sharing_setup_tx: string | null;
+}
+
+// Buyback types
+export interface BuybackResult {
+  success: boolean;
+  buyTxSignature?: string;
+  burnTxSignature?: string;
+  tokensBought?: number;
+  solSpent?: number; // In lamports
+  error?: string;
 }
