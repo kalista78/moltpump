@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Keypair, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
 import { PumpSdk } from '@pump-fun/pump-sdk';
 import { PUMP_FUN } from '../config/constants.js';
 import { PumpFunError, ValidationError } from '../utils/errors.js';
@@ -119,13 +119,14 @@ class PumpFunService {
       console.log(`Generated mint: ${mintKeypair.publicKey.toBase58()}`);
 
       // Step 3: Build the create instruction using the SDK
-      // The creator is set to the agent's wallet so they receive creator fees
+      // IMPORTANT: Platform wallet is the creator so we can set up fee sharing
+      // The fee sharing will then distribute 40% to agent, 60% to platform
       const createIx = await sdk.createInstruction({
         mint: mintKeypair.publicKey,
         name: params.name,
         symbol: params.symbol,
         uri: metadataUri,
-        creator: new PublicKey(creatorWalletAddress), // Agent receives creator fees
+        creator: platformWallet.publicKey, // Platform as creator for fee sharing
         user: platformWallet.publicKey, // Platform wallet pays for tx
       });
 
