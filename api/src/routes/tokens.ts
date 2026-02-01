@@ -51,6 +51,7 @@ tokens.post(
   zValidator('json', launchTokenSchema),
   async (c) => {
     const agent = c.get('agent');
+    const apiKey = c.get('apiKey');
     const params = c.req.valid('json');
 
     // Validate agent has a wallet
@@ -127,6 +128,29 @@ tokens.post(
             error: result.feeSharingSetup?.error,
           };
 
+      // Auto-announce on Moltbook if requested
+      let announcement: { posted: boolean; moltbook_url?: string; error?: string } | undefined;
+
+      if (params.auto_announce && result.pumpfunUrl) {
+        const { title, content } = moltbookService.generateLaunchAnnouncement({
+          tokenName: params.name,
+          tokenSymbol: params.symbol,
+          pumpfunUrl: result.pumpfunUrl,
+          customMessage: params.announcement_template,
+        });
+
+        const postResult = await moltbookService.createPost(apiKey, {
+          title,
+          content,
+          url: result.pumpfunUrl,
+          image_url: params.image_url,
+        });
+
+        announcement = postResult.success
+          ? { posted: true, moltbook_url: postResult.postUrl }
+          : { posted: false, error: postResult.error };
+      }
+
       return c.json({
         success: true,
         data: {
@@ -140,6 +164,7 @@ tokens.post(
           },
           tx_signature: result.txSignature,
           fee_sharing: feeSharingInfo,
+          announcement,
           message: `Token ${params.symbol} launched successfully! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
         },
       }, 201);

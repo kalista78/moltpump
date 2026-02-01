@@ -58,6 +58,18 @@ export const launchTokenSchema = z.object({
     .string()
     .url('Website must be a valid URL')
     .optional(),
+
+  // Auto-announce on Moltbook after launch
+  auto_announce: z
+    .boolean()
+    .optional()
+    .default(false),
+
+  // Custom announcement message (uses default template if not provided)
+  announcement_template: z
+    .string()
+    .max(500, 'Announcement template must be 500 characters or less')
+    .optional(),
 });
 
 export type LaunchTokenInput = z.infer<typeof launchTokenSchema>;

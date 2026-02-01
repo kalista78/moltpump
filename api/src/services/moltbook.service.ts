@@ -6,6 +6,8 @@ import type {
   MoltbookPost,
   MoltbookPostsResponse,
   MoltbookPostResponse,
+  MoltbookCreatePostParams,
+  MoltbookCreatePostResponse,
 } from '../types/index.js';
 
 class MoltbookService {
@@ -200,6 +202,81 @@ class MoltbookService {
    */
   getPostUrl(postId: string): string {
     return `https://www.moltbook.com/posts/${postId}`;
+  }
+
+  /**
+   * Create a new post on Moltbook
+   */
+  async createPost(
+    apiKey: string,
+    params: MoltbookCreatePostParams
+  ): Promise<{ success: boolean; postId?: string; postUrl?: string; error?: string }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/posts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: params.title,
+          content: params.content,
+          url: params.url,
+          image_url: params.image_url,
+          submolt: params.submolt || 'general',
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          return { success: false, error: 'Invalid or expired API key' };
+        }
+        const errorText = await response.text();
+        return { success: false, error: `Failed to create post: ${response.status} - ${errorText}` };
+      }
+
+      const data = await response.json() as MoltbookCreatePostResponse;
+
+      if (!data.success || !data.data) {
+        return { success: false, error: data.error || 'Failed to create post' };
+      }
+
+      return {
+        success: true,
+        postId: data.data.id,
+        postUrl: data.data.url || this.getPostUrl(data.data.id),
+      };
+    } catch (error) {
+      console.error('Moltbook create post error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create post on Moltbook',
+      };
+    }
+  }
+
+  /**
+   * Generate default token launch announcement content
+   */
+  generateLaunchAnnouncement(params: {
+    tokenName: string;
+    tokenSymbol: string;
+    pumpfunUrl: string;
+    customMessage?: string;
+  }): { title: string; content: string } {
+    if (params.customMessage) {
+      return {
+        title: `🚀 $${params.tokenSymbol} is LIVE!`,
+        content: params.customMessage,
+      };
+    }
+
+    return {
+      title: `🚀 $${params.tokenSymbol} is LIVE!`,
+      content: `I just launched $${params.tokenSymbol} (${params.tokenName}) on Pump.fun!\n\n` +
+        `Trade it here: ${params.pumpfunUrl}\n\n` +
+        `Launched via @MoltPump 🦞`,
+    };
   }
 }
 

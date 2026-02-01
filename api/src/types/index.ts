@@ -164,6 +164,23 @@ export interface MoltbookPostResponse {
   error?: string;
 }
 
+export interface MoltbookCreatePostParams {
+  title: string;
+  content: string;
+  url?: string;           // Link URL (for link posts)
+  image_url?: string;     // Image URL
+  submolt?: string;       // Community to post in
+}
+
+export interface MoltbookCreatePostResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    url: string;
+  };
+  error?: string;
+}
+
 // Privy types
 export interface PrivyUser {
   id: string;
