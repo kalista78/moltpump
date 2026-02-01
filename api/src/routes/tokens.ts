@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { moltbookAuth } from '../middleware/moltbook-auth.js';
 import { launchRateLimiter } from '../middleware/rate-limiter.js';
 import { pumpfunService } from '../services/pumpfun.service.js';
+import { moltbookService } from '../services/moltbook.service.js';
 import { tokenQueries, launchQueries } from '../db/queries.js';
 import {
   launchTokenSchema,
@@ -10,7 +11,8 @@ import {
   tokenIdParamSchema,
   mintAddressParamSchema,
 } from '../schemas/tokens.js';
-import { NotFoundError, ValidationError } from '../utils/errors.js';
+import { launchFromPostSchema } from '../schemas/posts.js';
+import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors.js';
 
 const tokens = new Hono();
 
@@ -139,6 +141,158 @@ tokens.post(
           tx_signature: result.txSignature,
           fee_sharing: feeSharingInfo,
           message: `Token ${params.symbol} launched successfully! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
+        },
+      }, 201);
+    } catch (error) {
+      // Update launch record with error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await launchQueries.complete(launch.id, false, undefined, undefined, errorMessage);
+      throw error;
+    }
+  }
+);
+
+// Launch a token from a Moltbook post
+tokens.post(
+  '/launch-from-post',
+  moltbookAuth,
+  launchRateLimiter,
+  zValidator('json', launchFromPostSchema),
+  async (c) => {
+    const agent = c.get('agent');
+    const apiKey = c.get('apiKey');
+    const params = c.req.valid('json');
+
+    // Validate agent has a wallet
+    if (!agent.solana_wallet_address) {
+      throw new ValidationError('Agent does not have a Solana wallet configured');
+    }
+
+    // Fetch the post from Moltbook
+    const post = await moltbookService.getPostById(apiKey, params.post_id);
+
+    if (!post) {
+      throw new NotFoundError(`Post with id '${params.post_id}' not found`);
+    }
+
+    // Verify ownership - post author must match authenticated agent
+    if (post.author_name !== agent.moltbook_name) {
+      throw new ForbiddenError('You can only tokenize your own posts');
+    }
+
+    // Build token parameters with post content as defaults
+    const tokenName = params.name || post.title.slice(0, 32); // Truncate to 32 chars
+    const tokenDescription = params.description || post.content.slice(0, 1000); // Truncate to 1000 chars
+    const tokenWebsite = params.website || moltbookService.getPostUrl(post.id);
+
+    // Get image URL - post image or fallback to agent avatar
+    let imageUrl = post.image_url;
+
+    if (!imageUrl) {
+      // Fetch agent profile to get avatar as fallback
+      const moltbookAgent = await moltbookService.validateApiKey(apiKey);
+      if (moltbookAgent?.avatar_url) {
+        imageUrl = moltbookAgent.avatar_url;
+      } else {
+        throw new ValidationError(
+          'Post has no image and agent has no avatar. Please provide an image_url or upload one first.'
+        );
+      }
+    }
+
+    // Create launch audit record
+    const launch = await launchQueries.create({
+      agent_id: agent.id,
+      request_payload: {
+        ...params,
+        source: 'moltbook_post',
+        post_id: post.id,
+        post_title: post.title,
+      } as Record<string, unknown>,
+      success: null,
+      error_message: null,
+      tx_signature: null,
+      token_id: null,
+      completed_at: null,
+      duration_ms: null,
+    });
+
+    try {
+      // Launch token on Pump.fun with fee sharing (70% agent / 30% platform)
+      const result = await pumpfunService.launchTokenWithFeeSharing(
+        {
+          name: tokenName,
+          symbol: params.symbol,
+          description: tokenDescription,
+          imageUrl: imageUrl,
+          twitter: params.twitter,
+          telegram: params.telegram,
+          website: tokenWebsite,
+        },
+        agent.solana_wallet_address
+      );
+
+      if (!result.success || !result.mint) {
+        // Update launch record with failure
+        await launchQueries.complete(launch.id, false, undefined, undefined, result.error);
+
+        return c.json({
+          success: false,
+          error: result.error || 'Token launch failed',
+        }, 500);
+      }
+
+      // Create token record
+      const token = await tokenQueries.create({
+        agent_id: agent.id,
+        mint_address: result.mint,
+        name: tokenName,
+        symbol: params.symbol,
+        description: tokenDescription,
+        image_url: imageUrl,
+        metadata_uri: result.metadataUri || null,
+        pumpfun_url: result.pumpfunUrl || null,
+        bonding_curve_address: result.bondingCurveAddress || null,
+        initial_buy_sol: null,
+        launch_tx_signature: result.txSignature || null,
+        status: 'active',
+      });
+
+      // Update launch record with success
+      await launchQueries.complete(launch.id, true, token.id, result.txSignature);
+
+      // Build fee sharing info for response
+      const feeSharingInfo = result.feeSharingSetup?.success
+        ? {
+            enabled: true,
+            config_pda: result.feeSharingSetup.configPda,
+            agent_share: '70%',
+            platform_share: '30%',
+          }
+        : {
+            enabled: false,
+            error: result.feeSharingSetup?.error,
+          };
+
+      return c.json({
+        success: true,
+        data: {
+          token: {
+            id: token.id,
+            mint_address: token.mint_address,
+            name: token.name,
+            symbol: token.symbol,
+            pumpfun_url: token.pumpfun_url,
+            launched_at: token.launched_at,
+          },
+          source_post: {
+            id: post.id,
+            title: post.title,
+            url: moltbookService.getPostUrl(post.id),
+          },
+          tx_signature: result.txSignature,
+          fee_sharing: feeSharingInfo,
+          message: `Token ${params.symbol} launched from your Moltbook post! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
         },
       }, 201);
     } catch (error) {

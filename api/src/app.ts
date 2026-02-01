@@ -13,6 +13,7 @@ import { agents } from './routes/agents.js';
 import { tokens } from './routes/tokens.js';
 import { upload } from './routes/upload.js';
 import { fees } from './routes/fees.js';
+import { posts } from './routes/posts.js';
 import { API } from './config/constants.js';
 import { env } from './config/env.js';
 
@@ -81,6 +82,7 @@ api.route('/agents', agents);
 api.route('/tokens', tokens);
 api.route('/upload', upload);
 api.route('/fees', fees);
+api.route('/posts', posts);
 
 // Mount API under versioned path
 app.route(API.BASE_PATH, api);

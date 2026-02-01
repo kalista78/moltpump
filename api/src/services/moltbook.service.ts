@@ -1,6 +1,12 @@
 import { env } from '../config/env.js';
 import { MoltbookError } from '../utils/errors.js';
-import type { MoltbookAgent, MoltbookValidationResponse } from '../types/index.js';
+import type {
+  MoltbookAgent,
+  MoltbookValidationResponse,
+  MoltbookPost,
+  MoltbookPostsResponse,
+  MoltbookPostResponse,
+} from '../types/index.js';
 
 class MoltbookService {
   private baseUrl: string;
@@ -101,6 +107,99 @@ class MoltbookService {
       hash = hash & hash;
     }
     return `moltbook_${Math.abs(hash).toString(16)}`;
+  }
+
+  /**
+   * Fetch posts by an agent's name
+   */
+  async getPostsByAuthor(
+    apiKey: string,
+    authorName: string,
+    options: { page?: number; limit?: number } = {}
+  ): Promise<{ posts: MoltbookPost[]; pagination: { page: number; limit: number; total: number } }> {
+    const { page = 1, limit = 20 } = options;
+
+    try {
+      const params = new URLSearchParams({
+        author: authorName,
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+
+      const response = await fetch(`${this.baseUrl}/posts?${params}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new MoltbookError('Invalid or expired API key');
+        }
+        throw new MoltbookError(`API returned ${response.status}`);
+      }
+
+      const data = await response.json() as MoltbookPostsResponse;
+
+      if (!data.success) {
+        throw new MoltbookError(data.error || 'Failed to fetch posts');
+      }
+
+      return {
+        posts: data.data || [],
+        pagination: data.pagination || { page, limit, total: 0 },
+      };
+    } catch (error) {
+      if (error instanceof MoltbookError) throw error;
+      console.error('Moltbook API error:', error);
+      throw new MoltbookError('Failed to fetch posts from Moltbook');
+    }
+  }
+
+  /**
+   * Fetch a specific post by ID
+   */
+  async getPostById(apiKey: string, postId: string): Promise<MoltbookPost | null> {
+    try {
+      const response = await fetch(`${this.baseUrl}/posts/${encodeURIComponent(postId)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new MoltbookError('Invalid or expired API key');
+        }
+        if (response.status === 404) {
+          return null;
+        }
+        throw new MoltbookError(`API returned ${response.status}`);
+      }
+
+      const data = await response.json() as MoltbookPostResponse;
+
+      if (!data.success || !data.data) {
+        return null;
+      }
+
+      return data.data;
+    } catch (error) {
+      if (error instanceof MoltbookError) throw error;
+      console.error('Moltbook API error:', error);
+      throw new MoltbookError('Failed to fetch post from Moltbook');
+    }
+  }
+
+  /**
+   * Generate Moltbook post URL
+   */
+  getPostUrl(postId: string): string {
+    return `https://www.moltbook.com/posts/${postId}`;
   }
 }
 

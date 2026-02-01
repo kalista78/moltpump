@@ -133,6 +133,37 @@ export interface MoltbookValidationResponse {
   hint?: string;
 }
 
+// Moltbook Post types
+export interface MoltbookPost {
+  id: string;
+  title: string;
+  content: string;
+  url?: string;           // For link posts
+  image_url?: string;     // Post image if any
+  submolt: string;
+  author_name: string;
+  created_at: string;
+  karma: number;
+  comment_count: number;
+}
+
+export interface MoltbookPostsResponse {
+  success: boolean;
+  data?: MoltbookPost[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+  error?: string;
+}
+
+export interface MoltbookPostResponse {
+  success: boolean;
+  data?: MoltbookPost;
+  error?: string;
+}
+
 // Privy types
 export interface PrivyUser {
   id: string;
