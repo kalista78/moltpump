@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/Badge";
+
+const API_BASE_URL = "https://api.moltpump.xyz/api/v1";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -267,7 +269,101 @@ function OnboardingCard() {
   );
 }
 
+interface PlatformStats {
+  totalMarketCap: number;
+  tokensLaunched: number;
+  feesEarned: number;
+  volume24h: number;
+}
+
+function formatStatValue(num: number, prefix = "$"): string {
+  if (num >= 1_000_000_000) {
+    return `${prefix}${(num / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (num >= 1_000_000) {
+    return `${prefix}${(num / 1_000_000).toFixed(2)}M`;
+  }
+  if (num >= 1_000) {
+    return `${prefix}${(num / 1_000).toFixed(2)}K`;
+  }
+  if (num > 0) {
+    return `${prefix}${num.toFixed(2)}`;
+  }
+  return `${prefix}0`;
+}
+
 export function Hero() {
+  const [stats, setStats] = useState<PlatformStats>({
+    totalMarketCap: 0,
+    tokensLaunched: 0,
+    feesEarned: 0,
+    volume24h: 0,
+  });
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        // Fetch tokens from our API
+        const response = await fetch(`${API_BASE_URL}/tokens/public?limit=100`);
+        const data = await response.json();
+
+        if (!data.success) return;
+
+        const tokens = data.data;
+        const tokensLaunched = data.pagination?.total || tokens.length;
+
+        // Fetch live data from DexScreener for each token
+        let totalMarketCap = 0;
+        let totalVolume24h = 0;
+
+        await Promise.all(
+          tokens.map(async (token: { mint_address: string }) => {
+            try {
+              const dexResponse = await fetch(
+                `https://api.dexscreener.com/latest/dex/tokens/${token.mint_address}`
+              );
+              const dexData = await dexResponse.json();
+
+              if (dexData.pairs && dexData.pairs.length > 0) {
+                const mainPair = dexData.pairs.reduce((best: any, pair: any) => {
+                  const bestLiq = best.liquidity?.usd || 0;
+                  const pairLiq = pair.liquidity?.usd || 0;
+                  return pairLiq > bestLiq ? pair : best;
+                }, dexData.pairs[0]);
+
+                totalMarketCap += mainPair.marketCap || mainPair.fdv || 0;
+                totalVolume24h += mainPair.volume?.h24 || 0;
+              }
+            } catch {
+              // Skip failed DexScreener fetches
+            }
+          })
+        );
+
+        setStats({
+          totalMarketCap,
+          tokensLaunched,
+          feesEarned: 0, // TODO: Implement fee tracking
+          volume24h: totalVolume24h,
+        });
+      } catch (error) {
+        console.error("Failed to fetch platform stats:", error);
+      }
+    }
+
+    fetchStats();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const statsDisplay = [
+    { label: "Market Cap", value: formatStatValue(stats.totalMarketCap) },
+    { label: "Launched", value: stats.tokensLaunched.toString() },
+    { label: "Fees Earned", value: formatStatValue(stats.feesEarned) },
+    { label: "24h Volume", value: formatStatValue(stats.volume24h) },
+  ];
+
   return (
     <section className="relative overflow-hidden">
       {/* Background decoration */}
@@ -332,12 +428,7 @@ export function Hero() {
             variants={fadeInUp}
             className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto"
           >
-            {[
-              { label: "Market Cap", value: "$0" },
-              { label: "Launched", value: "0" },
-              { label: "Fees Earned", value: "$0" },
-              { label: "24h Volume", value: "$0" },
-            ].map((stat) => (
+            {statsDisplay.map((stat) => (
               <div key={stat.label} className="text-center">
                 <div className="font-display text-xl md:text-2xl text-text mb-0.5">
                   {stat.value}
