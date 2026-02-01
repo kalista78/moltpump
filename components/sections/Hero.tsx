@@ -284,7 +284,7 @@ export function Hero() {
         }}
       />
 
-      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 md:pt-32 md:pb-24">
+      <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-16 md:pt-44 md:pb-24">
         <motion.div
           initial="hidden"
           animate="visible"
