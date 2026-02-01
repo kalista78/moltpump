@@ -14,6 +14,33 @@ import { NotFoundError, ValidationError } from '../utils/errors.js';
 
 const tokens = new Hono();
 
+// PUBLIC: List all tokens (no auth required)
+// Used by frontend to display token gallery
+tokens.get(
+  '/public',
+  zValidator('query', listTokensQuerySchema),
+  async (c) => {
+    const { page, limit, status } = c.req.valid('query');
+
+    const { tokens: tokenList, total } = await tokenQueries.list({
+      page,
+      limit,
+      status: status || 'active', // Default to active tokens
+    });
+
+    return c.json({
+      success: true,
+      data: tokenList,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  }
+);
+
 // Launch a new token
 tokens.post(
   '/launch',
