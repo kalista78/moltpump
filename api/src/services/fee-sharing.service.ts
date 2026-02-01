@@ -1,4 +1,4 @@
-import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction, TransactionExpiredBlockheightExceededError } from '@solana/web3.js';
 import {
   PumpSdk,
   OnlinePumpSdk,
@@ -13,6 +13,9 @@ import { FEE_SHARING } from '../config/constants.js';
 import { getConnection } from '../utils/solana.js';
 import { FeeSharingError } from '../utils/errors.js';
 import type { FeeShareholder, FeeSharingSetupResult, FeeDistributionResult } from '../types/index.js';
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
 
 /**
  * Fee Sharing Service
@@ -59,6 +62,55 @@ class FeeSharingService {
   }
 
   /**
+   * Send a transaction with retry logic for blockhash expiration
+   */
+  private async sendWithRetry(
+    tx: Transaction,
+    signers: Keypair[],
+    description: string
+  ): Promise<string> {
+    const connection = getConnection();
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        // Get fresh blockhash for each attempt
+        const { blockhash } = await connection.getLatestBlockhash('confirmed');
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = signers[0].publicKey;
+
+        console.log(`${description} - attempt ${attempt}/${MAX_RETRIES}`);
+
+        const signature = await sendAndConfirmTransaction(
+          connection,
+          tx,
+          signers,
+          {
+            commitment: 'confirmed',
+            maxRetries: 3, // internal retries for network issues
+          }
+        );
+
+        console.log(`${description} succeeded: ${signature}`);
+        return signature;
+      } catch (error) {
+        const isBlockheightError =
+          error instanceof TransactionExpiredBlockheightExceededError ||
+          (error instanceof Error && error.message.includes('block height exceeded'));
+
+        if (isBlockheightError && attempt < MAX_RETRIES) {
+          console.log(`${description} - blockhash expired, retrying in ${RETRY_DELAY_MS}ms...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    throw new Error(`${description} failed after ${MAX_RETRIES} attempts`);
+  }
+
+  /**
    * Set up fee sharing for a newly launched token
    * Creates config, sets shareholders (40% agent / 60% platform), and locks authority
    */
@@ -69,7 +121,6 @@ class FeeSharingService {
     try {
       const sdk = this.getOfflineSDK();
       const platformWallet = this.getPlatformWallet();
-      const connection = getConnection();
 
       const mint = new PublicKey(mintAddress);
       const agentWallet = new PublicKey(agentWalletAddress);
@@ -88,17 +139,11 @@ class FeeSharingService {
       });
 
       const createTx = new Transaction().add(createConfigIx);
-      createTx.feePayer = platformWallet.publicKey;
-      createTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const setupTxSignature = await sendAndConfirmTransaction(
-        connection,
+      const setupTxSignature = await this.sendWithRetry(
         createTx,
         [platformWallet],
-        { commitment: 'confirmed' }
+        'Create fee sharing config'
       );
-
-      console.log(`Fee sharing config created: ${setupTxSignature}`);
 
       // Step 2: Update fee shares (40% agent, 60% platform)
       // New shareholders for the 40/60 split
@@ -118,17 +163,11 @@ class FeeSharingService {
       });
 
       const updateTx = new Transaction().add(updateSharesIx);
-      updateTx.feePayer = platformWallet.publicKey;
-      updateTx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const updateTxSignature = await sendAndConfirmTransaction(
-        connection,
+      const updateTxSignature = await this.sendWithRetry(
         updateTx,
         [platformWallet],
-        { commitment: 'confirmed' }
+        'Update fee shares'
       );
-
-      console.log(`Fee shares updated: ${updateTxSignature}`);
 
       // Get the config PDA for reference
       const configPda = feeSharingConfigPda(mint);
@@ -192,17 +231,11 @@ class FeeSharingService {
       });
 
       const tx = new Transaction().add(distributeIx);
-      tx.feePayer = platformWallet.publicKey;
-      tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
-
-      const txSignature = await sendAndConfirmTransaction(
-        connection,
+      const txSignature = await this.sendWithRetry(
         tx,
         [platformWallet],
-        { commitment: 'confirmed' }
+        `Distribute creator fees for ${mintAddress}`
       );
-
-      console.log(`Creator fees distributed for ${mintAddress}: ${txSignature}`);
 
       return {
         success: true,
