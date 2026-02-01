@@ -120,7 +120,7 @@ class PumpFunService {
 
       // Step 3: Build the create instruction using the SDK
       // IMPORTANT: Platform wallet is the creator so we can set up fee sharing
-      // The fee sharing will then distribute 40% to agent, 60% to platform
+      // The fee sharing will then distribute 70% to agent, 60% to platform
       const createIx = await sdk.createInstruction({
         mint: mintKeypair.publicKey,
         name: params.name,
@@ -189,7 +189,7 @@ class PumpFunService {
 
     console.log(`Token created: ${launchResult.mint}, setting up fee sharing...`);
 
-    // Step 2: Set up fee sharing (40% agent, 60% platform)
+    // Step 2: Set up fee sharing (70% agent, 30% platform)
     // Small delay to ensure the token is fully indexed
     await new Promise(resolve => setTimeout(resolve, 2000));
 

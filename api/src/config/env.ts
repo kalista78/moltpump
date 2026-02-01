@@ -13,7 +13,7 @@ const envSchema = z.object({
   SOLANA_RPC_URL: z.string().url(),
   PLATFORM_WALLET_PRIVATE_KEY: z.string().min(1), // Required for fee sharing transactions
 
-  // Fee Sharing - MoltPump treasury receives 60% of creator fees
+  // Fee Sharing - MoltPump treasury receives 30% of creator fees
   MOLTPUMP_TREASURY_WALLET: z.string().min(32).max(44), // Solana base58 address
 
   // App

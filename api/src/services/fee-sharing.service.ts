@@ -21,7 +21,7 @@ const RETRY_DELAY_MS = 2000;
  * Fee Sharing Service
  *
  * Handles Pump.fun's on-chain fee sharing configuration.
- * Split: 40% to agent (token creator), 60% to MoltPump treasury
+ * Split: 70% to agent (token creator), 30% to MoltPump treasury
  *
  * Flow:
  * 1. After token launch, create fee sharing config
@@ -112,7 +112,7 @@ class FeeSharingService {
 
   /**
    * Set up fee sharing for a newly launched token
-   * Creates config, sets shareholders (40% agent / 60% platform), and locks authority
+   * Creates config, sets shareholders (70% agent / 30% platform), and locks authority
    */
   async setupFeeSharing(
     mintAddress: string,
@@ -127,8 +127,8 @@ class FeeSharingService {
       const treasuryWallet = new PublicKey(env.MOLTPUMP_TREASURY_WALLET);
 
       console.log(`Setting up fee sharing for mint ${mintAddress}`);
-      console.log(`  Agent (40%): ${agentWalletAddress}`);
-      console.log(`  Treasury (60%): ${env.MOLTPUMP_TREASURY_WALLET}`);
+      console.log(`  Agent (70%): ${agentWalletAddress}`);
+      console.log(`  Treasury (30%): ${env.MOLTPUMP_TREASURY_WALLET}`);
 
       // Step 1: Create fee sharing config
       // The platform wallet is the creator/payer and initial authority
@@ -145,8 +145,8 @@ class FeeSharingService {
         'Create fee sharing config'
       );
 
-      // Step 2: Update fee shares (40% agent, 60% platform)
-      // New shareholders for the 40/60 split
+      // Step 2: Update fee shares (70% agent, 30% platform)
+      // New shareholders for the 70/30 split
       const newShareholders: Shareholder[] = [
         { address: agentWallet, shareBps: FEE_SHARING.AGENT_SHARE_BPS },
         { address: treasuryWallet, shareBps: FEE_SHARING.PLATFORM_SHARE_BPS },

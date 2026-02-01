@@ -53,8 +53,8 @@ export const STORAGE = {
 
 export const FEE_SHARING = {
   // Fee split in basis points (total must equal 10000)
-  AGENT_SHARE_BPS: 4000,      // 40% to token creator (agent)
-  PLATFORM_SHARE_BPS: 6000,   // 60% to MoltPump treasury
+  AGENT_SHARE_BPS: 7000,      // 70% to token creator (agent)
+  PLATFORM_SHARE_BPS: 3000,   // 30% to MoltPump treasury
 
   // Minimum accumulated fees before distribution (in lamports)
   MIN_DISTRIBUTABLE_LAMPORTS: 10_000_000, // 0.01 SOL

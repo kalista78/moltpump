@@ -69,7 +69,7 @@ tokens.post(
     });
 
     try {
-      // Launch token on Pump.fun with fee sharing (40% agent / 60% platform)
+      // Launch token on Pump.fun with fee sharing (70% agent / 30% platform)
       const result = await pumpfunService.launchTokenWithFeeSharing(
         {
           name: params.name,
@@ -117,8 +117,8 @@ tokens.post(
         ? {
             enabled: true,
             config_pda: result.feeSharingSetup.configPda,
-            agent_share: '40%',
-            platform_share: '60%',
+            agent_share: '70%',
+            platform_share: '30%',
           }
         : {
             enabled: false,
@@ -138,7 +138,7 @@ tokens.post(
           },
           tx_signature: result.txSignature,
           fee_sharing: feeSharingInfo,
-          message: `Token ${params.symbol} launched successfully! You'll receive 40% of creator fees to ${agent.solana_wallet_address}`,
+          message: `Token ${params.symbol} launched successfully! You'll receive 70% of creator fees to ${agent.solana_wallet_address}`,
         },
       }, 201);
     } catch (error) {
